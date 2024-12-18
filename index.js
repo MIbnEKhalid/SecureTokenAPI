@@ -17,7 +17,7 @@ const config = {
         github: [
             {
                 type: "read_repo",
-                token: process.env.GITHUB_READ_REPO_TOKEN || "",
+                token: process.env.GITHUB_READ_REPO_TOKEN || "d",
                 status: "active",
             },
             {
@@ -74,7 +74,7 @@ config.validTokens.forEach((tokenObj) => {
 Object.keys(config.platformTokens).forEach((platform) => {
     config.platformTokens[platform].forEach((typeToken) => {
         if (typeToken.token) {
-            typeToken.token = hashToken(typeToken.token);
+            typeToken.token =  typeToken.token ;
         }
     });
 });
@@ -96,6 +96,24 @@ const validateDomain = (req, res, next) => {
     next();
 };
 
+// Token authentication middleware
+const authenticateToken = (req, res, next) => {
+    const token = req.headers["authorization"]?.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ error: "No token provided." });
+    }
+    const hashedToken = hashToken(token);
+    const validToken = config.validTokens.find((t) => t.token === hashedToken);
+    if (!validToken) {
+        return res.status(403).json({ error: "Invalid token." });
+    }
+    if (validToken.status === "inactive") {
+        return res
+            .status(403)
+            .json({ error: "Your Token is inactive. Please Contact Admin" });
+    }
+    next();
+};
 // Caching mechanism
 const cache = {}; // Simple in-memory cache
 
@@ -115,7 +133,7 @@ app.use((req, res, next) => {
 });
 
 // Route handler for fetching tokens based on platform and type
-app.get("/api", validateDomain, (req, res, next) => {
+app.get("/api", authenticateToken,validateDomain, (req, res, next) => {
     const { token: platformKey, type } = req.query;
 
     if (!platformKey || !type) {
